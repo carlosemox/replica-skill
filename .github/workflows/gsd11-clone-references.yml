@@ -1,0 +1,55 @@
+name: "GSD11 - Clone third-party public references"
+on:
+  push:
+    branches:
+      - "gsd11/clone-references-20261106"
+    paths:
+      - ".github/workflows/gsd11-clone-references.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  clone_public_sources:
+    name: "Clone ${{ matrix.id }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - { id: "opencontracts", repo: "Open-Source-Legal/OpenContracts", sha: "fab192a548912d48bbc0d8a9bf425b50bbb88f71" }
+          - { id: "concerto", repo: "accordproject/concerto", sha: "5f1d51c68226356910fa31fbcf02c947b819fe4a" }
+          - { id: "docling", repo: "docling-project/docling", sha: "1e26b84c5f5690128ddcd65a20a5d7ffb9e80dcd" }
+          - { id: "openfga", repo: "openfga/openfga", sha: "4b09dafb027d839e6c42073e6e288f5ea6881d4d" }
+          - { id: "docuseal", repo: "docusealco/docuseal", sha: "6c416dd76e10a44a6440a77d144819199687a06b" }
+          - { id: "documenso", repo: "documenso/documenso", sha: "fdd0337bdd8f6afac64faf97113c65ed2dd0e2a2" }
+          - { id: "paperless", repo: "paperless-ngx/paperless-ngx", sha: "19fdc3b815cdcaf0ad869557c45c27ef7d2215b3" }
+          - { id: "activepieces", repo: "activepieces/activepieces", sha: "1c9f6a591bf8d7f4f336dd6d66962432a6fb9bf7" }
+          - { id: "bigcapital", repo: "bigcapitalhq/bigcapital", sha: "8dcd415375f5edcada12aea693ed2f15ec569b88" }
+    steps:
+      - name: "Fetch public source at verified commit (no code execution)"
+        shell: bash
+        env:
+          ID: ${{ matrix.id }}
+          REPO: ${{ matrix.repo }}
+          COMMIT: ${{ matrix.sha }}
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/gsd11/$ID"
+          mkdir -p "$OUT"
+          git init -q "$OUT"
+          git -C "$OUT" remote add origin "https://github.com/$REPO.git"
+          git -C "$OUT" -c protocol.version=2 fetch --depth=1 origin "$COMMIT"
+          git -C "$OUT" -c advice.detachedHead=false checkout -q --detach FETCH_HEAD
+          test "$(git -C "$OUT" rev-parse HEAD)" = "$COMMIT"
+          printf 'upstream=%s\ncommit=%s\nmode=shallow-source-snapshot\n' "$REPO" "$COMMIT" > "$OUT/ORIGEM_GSD11.txt"
+          rm -rf "$OUT/.git"
+          printf '%s files downloaded\n' "$(find "$OUT" -type f | wc -l)"
+      - name: "Upload independent source archive"
+        uses: actions/upload-artifact@v4
+        with:
+          name: gsd11-public-${{ matrix.id }}
+          path: ${{ runner.temp }}/gsd11/${{ matrix.id }}/
+          retention-days: 7
+          if-no-files-found: error
